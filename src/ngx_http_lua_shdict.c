@@ -24,6 +24,7 @@ static int ngx_http_lua_shdict_delete(lua_State *L);
 static int ngx_http_lua_shdict_flush_all(lua_State *L);
 static int ngx_http_lua_shdict_flush_expired(lua_State *L);
 
+
 #define NGX_HTTP_LUA_SHDICT_ADD         0x0001
 #define NGX_HTTP_LUA_SHDICT_REPLACE     0x0002
 
@@ -280,7 +281,7 @@ ngx_http_lua_inject_shdict_api(ngx_http_lua_main_conf_t *lmcf, lua_State *L)
         lua_createtable(L, 0, lmcf->shm_zones->nelts /* nrec */);
                 /* ngx.shared */
 
-        lua_createtable(L, 0 /* narr */, 8 /* nrec */); /* shared mt */
+        lua_createtable(L, 0 /* narr */, 9 /* nrec */); /* shared mt */
 
         lua_pushcfunction(L, ngx_http_lua_shdict_get);
         lua_setfield(L, -2, "get");
@@ -535,6 +536,7 @@ ngx_http_lua_shdict_flush_all(lua_State *L)
     return 0;
 }
 
+
 static int
 ngx_http_lua_shdict_flush_expired(lua_State *L)
 {
@@ -544,14 +546,14 @@ ngx_http_lua_shdict_flush_expired(lua_State *L)
     ngx_shm_zone_t              *zone;
     ngx_time_t                  *tp;
     int                          freed = 0;
-    int                          attempt = 0;
+    int                          attempts = 0;
     ngx_rbtree_node_t           *node;
     uint64_t                     now;
     int                          n;
 
-     n = lua_gettop(L);
+    n = lua_gettop(L);
 
-    if (n != 1 && n !=2 ) {
+    if (n != 1 && n != 2) {
         return luaL_error(L, "expecting 1 or 2 argument(s), "
                 "but saw %d", n);
     }
@@ -563,15 +565,17 @@ ngx_http_lua_shdict_flush_expired(lua_State *L)
         return luaL_error(L, "bad user data for the ngx_shm_zone_t pointer");
     }
 
-    if (2 == n) {
-        attempt = luaL_checknumber(L, 2);
+    if (n == 2) {
+        attempts = luaL_checknumber(L, 2);
     }
 
     ctx = zone->data;
 
+    ngx_shmtx_lock(&ctx->shpool->mutex);
 
     if (ngx_queue_empty(&ctx->sh->queue)) {
-        lua_pushnumber(L, freed);
+        ngx_shmtx_unlock(&ctx->shpool->mutex);
+        lua_pushnumber(L, 0);
         return 1;
     }
 
@@ -579,17 +583,16 @@ ngx_http_lua_shdict_flush_expired(lua_State *L)
 
     now = (uint64_t) tp->sec * 1000 + tp->msec;
 
-    ngx_shmtx_lock(&ctx->shpool->mutex);
-
     q = ngx_queue_head(&ctx->sh->queue);
 
-    while(q != ngx_queue_sentinel(&ctx->sh->queue)) {
+    while (q != ngx_queue_sentinel(&ctx->sh->queue)) {
         next = ngx_queue_next(q);
 
         sd = ngx_queue_data(q, ngx_http_lua_shdict_node_t, queue);
 
-        if (0 != sd->expires && sd->expires <= now) {
+        if (sd->expires != 0 && sd->expires <= now) {
             ngx_queue_remove(q);
+
             node = (ngx_rbtree_node_t *)
                 ((u_char *) sd - offsetof(ngx_rbtree_node_t, color));
 
@@ -598,7 +601,8 @@ ngx_http_lua_shdict_flush_expired(lua_State *L)
             ngx_slab_free_locked(ctx->shpool, node);
 
             freed++;
-            if (attempt && freed == attempt) {
+
+            if (attempts && freed == attempts) {
                 break;
             }
         }
