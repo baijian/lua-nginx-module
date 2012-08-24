@@ -1,10 +1,29 @@
-typedef struct { int dummy; } lua_State;
-typedef struct { int dummy; } ngx_http_request_t;
-
-
 provider nginx_lua {
-    probe http__lua__register__preload__package(lua_State *L, char *pkg);
-    probe http__lua__req__socket__consume__preread(ngx_http_request_t *r, char *size, size_t len);
+    /* lua_State *L */
+    probe http__lua__register__preload__package(void *L, u_char *pkg);
+
+    probe http__lua__req__socket__consume__preread(ngx_http_request_t *r,
+            u_char *data, size_t len);
+
+    /* lua_State *parent, lua_State *child */
+    probe http__lua__user__coroutine__create(ngx_http_request_t *r,
+            void *parent, void *child);
+
+    /* lua_State *parent, lua_State *child */
+    probe http__lua__user__coroutine__resume(ngx_http_request_t *r,
+            void *parent, void *child);
+
+    /* ngx_http_lua_socket_tcp_upstream_t *u */
+    probe http__lua__socket__tcp__send__start(ngx_http_request_t *r,
+            void *u, u_char *data, size_t len);
+
+    /* ngx_http_lua_socket_tcp_upstream_t *u */
+    probe http__lua__socket__tcp__receive__done(ngx_http_request_t *r,
+            void *u, u_char *data, size_t len);
+
+    /* ngx_http_lua_socket_tcp_upstream_t *u */
+    probe http__lua__socket__tcp__setkeepalive__buf__unread(
+            ngx_http_request_t *r, void *u, u_char *data, size_t len);
 };
 
 

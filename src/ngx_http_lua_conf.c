@@ -118,6 +118,7 @@ ngx_http_lua_create_loc_conf(ngx_conf_t *cf)
     conf->pool_size = NGX_CONF_UNSET_UINT;
 
     conf->transform_underscores_in_resp_headers = NGX_CONF_UNSET;
+    conf->log_socket_errors = NGX_CONF_UNSET;
 
     return conf;
 }
@@ -193,6 +194,8 @@ ngx_http_lua_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_value(conf->transform_underscores_in_resp_headers,
                          prev->transform_underscores_in_resp_headers, 1);
 
+    ngx_conf_merge_value(conf->log_socket_errors, prev->log_socket_errors, 1);
+
     return NGX_CONF_OK;
 }
 
@@ -250,7 +253,7 @@ ngx_http_lua_init_vm(ngx_conf_t *cf, ngx_http_lua_main_conf_t *lmcf)
             ngx_http_lua_probe_register_preload_package(L, hook[i].package);
 
             lua_pushcfunction(L, hook[i].loader);
-            lua_setfield(L, -2, hook[i].package);
+            lua_setfield(L, -2, (char *) hook[i].package);
         }
 
         lua_pop(L, 2);

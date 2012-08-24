@@ -24,11 +24,6 @@
 #define MD5_DIGEST_LENGTH 16
 #endif
 
-#define NGX_HTTP_LUA_CHECK_ABORTED(L, ctx) \
-        if (ctx && ctx->aborted) { \
-            return luaL_error(L, "coroutine aborted"); \
-        }
-
 /* Nginx HTTP Lua Inline tag prefix */
 
 #define NGX_HTTP_LUA_INLINE_TAG "nhli_"
@@ -86,7 +81,7 @@ typedef ngx_int_t (*ngx_http_lua_conf_handler_pt)(ngx_log_t *log,
 
 
 typedef struct {
-    const char          *package;
+    u_char              *package;
     lua_CFunction        loader;
 } ngx_http_lua_preload_hook_t;
 
@@ -189,18 +184,37 @@ typedef struct {
 
     ngx_flag_t                       transform_underscores_in_resp_headers;
 
+    ngx_flag_t                       log_socket_errors;
+
 } ngx_http_lua_loc_conf_t;
 
 
+typedef enum {
+    NGX_HTTP_LUA_USER_CORO_NOP      = 0,
+    NGX_HTTP_LUA_USER_CORO_RESUME   = 1,
+    NGX_HTTP_LUA_USER_CORO_YIELD    = 2
+} ngx_http_lua_user_coro_op_t;
+
+
 typedef struct {
-    void                    *data;
+    void                    *data;      /* user state for cosockets */
 
-    uint8_t                  context;
+    uint8_t                  context;   /* the current running directive context
+                                           (or running phase) for the current
+                                           Lua chunk */
 
-    lua_State               *cc;  /*  coroutine to handle request */
+    lua_State               *cur_co;    /*  the current running Lua coroutine,
+                                            not necessarily to be the
+                                            request's entry coroutine */
 
-    int                      cc_ref;  /*  reference to anchor coroutine in
-                                          the lua registry */
+    lua_State               *entry_co;  /*  the entry Lua coroutine */
+
+
+    int                      entry_ref; /*  reference to anchor the entry
+                                            coroutine in the lua registry,
+                                            preventing the entry coroutine
+                                            from beging collected by the
+                                            Lua GC */
 
     int                      ctx_ref;  /*  reference to anchor
                                            request ctx data in lua
@@ -239,6 +253,8 @@ typedef struct {
 
     ngx_event_t      sleep;      /* used for ngx.sleep */
 
+    ngx_http_lua_user_coro_op_t   co_op:2; /*  coroutine API operation */
+
     unsigned         exited:1;
 
     unsigned         headers_sent:1;    /*  1: response header has been sent;
@@ -270,7 +286,6 @@ typedef struct {
 
     /* whether it has run post_subrequest */
     unsigned         run_post_subrequest:1;
-    unsigned         req_header_cached:1;
 
     unsigned         waiting_flush:1;
 
@@ -280,7 +295,6 @@ typedef struct {
     unsigned         udp_socket_busy:1;  /* for UDP */
     unsigned         udp_socket_ready:1; /* for UDP */
 
-    unsigned         aborted:1;
     unsigned         buffering:1;
 
 } ngx_http_lua_ctx_t;

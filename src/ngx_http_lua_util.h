@@ -10,28 +10,30 @@
 #define NGX_UNESCAPE_URI_COMPONENT  0
 #endif
 
-/* char whose address we'll use as key in Lua vm registry for
+/* char whose address we use as the key in Lua vm registry for
  * user code cache table */
 extern char ngx_http_lua_code_cache_key;
 
-/* char whose address we'll use as key in Lua vm registry for
+/* char whose address we use as the key in Lua vm registry for
  * all the "ngx.ctx" tables */
 extern char ngx_http_lua_ctx_tables_key;
 
-/* char whose address we'll use as key in Lua vm registry for
+/* char whose address we use as the key in Lua vm registry for
  * regex cache table  */
 extern char ngx_http_lua_regex_cache_key;
 
-/* char whose address we'll use as key in Lua vm registry for
+/* char whose address we use as the key in Lua vm registry for
  * socket connection pool table */
 extern char ngx_http_lua_socket_pool_key;
 
-/* char whose address we'll use as key for the nginx request pointer */
+/* char whose address we use as the key for the nginx request pointer */
 extern char ngx_http_lua_request_key;
 
-/* char whose address we'll use as key for the nginx config logger */
+/* char whose address we use as the key for the nginx config logger */
 extern char ngx_http_lua_cf_log_key;
 
+/* char whose address we use as the key for the coroutine parent relationship */
+extern char ngx_http_lua_coroutine_parents_key;
 
 #ifndef ngx_str_set
 #define ngx_str_set(str, text)                                               \
@@ -93,8 +95,6 @@ ngx_int_t ngx_http_lua_wev_handler(ngx_http_request_t *r);
 u_char * ngx_http_lua_digest_hex(u_char *dest, const u_char *buf,
     int buf_len);
 
-void ngx_http_lua_dump_postponed(ngx_http_request_t *r);
-
 ngx_int_t ngx_http_lua_flush_postponed_outputs(ngx_http_request_t *r);
 
 void ngx_http_lua_set_multi_value_table(lua_State *L, int index);
@@ -112,8 +112,6 @@ void ngx_http_lua_process_args_option(ngx_http_request_t *r,
 
 ngx_int_t ngx_http_lua_open_and_stat_file(u_char *name,
     ngx_open_file_info_t *of, ngx_log_t *log);
-
-void ngx_http_lua_inject_internal_utils(ngx_log_t *log, lua_State *L);
 
 ngx_chain_t * ngx_http_lua_chains_get_free_buf(ngx_log_t *log, ngx_pool_t *p,
     ngx_chain_t **free, size_t len, ngx_buf_tag_t tag);

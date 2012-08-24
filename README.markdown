@@ -18,7 +18,7 @@ This module is under active development and is production ready.
 Version
 =======
 
-This document describes ngx_lua [v0.5.11](https://github.com/chaoslawful/lua-nginx-module/tags) released on 30 July 2012.
+This document describes ngx_lua [v0.6.2](https://github.com/chaoslawful/lua-nginx-module/tags) released on 22 August 2012.
 
 Synopsis
 ========
@@ -821,6 +821,8 @@ Note that the following API functions are currently disabled within this context
 * Subrequest API functions (e.g., [ngx.location.capture](http://wiki.nginx.org/HttpLuaModule#ngx.location.capture) and [ngx.location.capture_multi](http://wiki.nginx.org/HttpLuaModule#ngx.location.capture_multi))
 * Cosocket API functions (e.g., [ngx.socket.tcp](http://wiki.nginx.org/HttpLuaModule#ngx.socket.tcp) and [ngx.req.socket](http://wiki.nginx.org/HttpLuaModule#ngx.req.socket)).
 
+Nginx output filters may be called multiple times for a single request because response body may be delivered in chunks. Thus, the Lua code specified by in this directive may also run multiple times in the lifetime of a single HTTP request.
+
 This directive was first introduced in the `v0.5.0rc32` release.
 
 body_filter_by_lua_file
@@ -1073,6 +1075,19 @@ This directive controls the default maximal idle time of the connections in the 
 The `<time>` argument can be an integer, with an optional time unit, like `s` (second), `ms` (millisecond), `m` (minute). The default time unit is `s`, i.e., "second". The default setting is `60s`.
 
 This directive was first introduced in the `v0.5.0rc1` release.
+
+lua_socket_log_errors
+---------------------
+
+**syntax:** *lua_socket_log_errors on|off*
+
+**default:** *lua_socket_log_errors on*
+
+**context:** *http, server, location*
+
+This directive can be used to toggle the automatic error logging when a failure occurs for the TCP or UDP cosockets. If you are already doing proper error handling and logging in your Lua code, then it is recommended to turn this directive off to prevent data flushing in your nginx error log files (which is usually rather expensive).
+
+This directive was first introduced in the `v0.5.13` release.
 
 lua_http10_buffering
 --------------------
@@ -1686,7 +1701,7 @@ There is a hard-coded upper limit on the number of concurrent subrequests possib
 
 The limit can be manually modified if required by editing the definition of the `NGX_HTTP_MAX_SUBREQUESTS` macro in the `nginx/src/http/ngx_http_request.h` file in the Nginx source tree.
 
-Please also refer to restrictions on [capturing locations that include Echo Module directives](http://wiki.nginx.org/HttpLuaModule#Locations_With_HttpEchoModule_Directives).
+Please also refer to restrictions on capturing locations configured by [subrequest directives of other modules](http://wiki.nginx.org/HttpLuaModule#Locations_Configured_by_Subrequest_Directives_of_Other_Modules).
 
 ngx.location.capture_multi
 --------------------------
@@ -1746,7 +1761,7 @@ of this function. Logically speaking, the [ngx.location.capture](http://wiki.ngi
         end
 
 
-Please also refer to restrictions on [capturing locations that include Echo Module directives](http://wiki.nginx.org/HttpLuaModule#Locations_With_HttpEchoModule_Directives).
+Please also refer to restrictions on capturing locations configured by [subrequest directives of other modules](http://wiki.nginx.org/HttpLuaModule#Locations_Configured_by_Subrequest_Directives_of_Other_Modules).
 
 ngx.status
 ----------
@@ -1768,7 +1783,7 @@ ngx.header.HEADER
 
 **context:** *rewrite_by_lua*, access_by_lua*, content_by_lua*, header_filter_by_lua*, body_filter_by_lua, log_by_lua**
 
-Set, add to, or clear the current request `HEADER` response header.
+Set, add to, or clear the current request's `HEADER` response header that is to be sent.
 
 Underscores (`_`) in the header names will be replaced by hyphens (`-`) by default. This transformation can be turned off via the [lua_transform_underscores_in_response_headers](http://wiki.nginx.org/HttpLuaModule#lua_transform_underscores_in_response_headers) directive.
 
@@ -4055,6 +4070,76 @@ Retrieves the current running phase name. Possible return values are
 
 This API was first introduced in the `v0.5.10` release.
 
+coroutine.create
+----------------
+**syntax:** *co = coroutine.create(f)*
+
+**context:** *rewrite_by_lua*, access_by_lua*, content_by_lua**
+
+Creates a user Lua coroutines with a Lua function, and returns a coroutine object.
+
+Just behaves like the standard Lua [coroutine.create](http://www.lua.org/manual/5.1/manual.html#pdf-coroutine.create) API, but works in the context of the Lua coroutines created automatically by this Nginx module.
+
+This API was first introduced in the `v0.6.0` release.
+
+coroutine.resume
+----------------
+**syntax:** *ok, ... = coroutine.resume(co, ...)*
+
+**context:** *rewrite_by_lua*, access_by_lua*, content_by_lua**
+
+Resumes the executation of a user Lua coroutine object previously yielded or just created.
+
+Just behaves like the standard Lua [coroutine.resume](http://www.lua.org/manual/5.1/manual.html#pdf-coroutine.resume) API, but works in the context of the Lua coroutines created automatically by this Nginx module.
+
+Due to the limitation in the current implementation, there is no protection against resuming a user coroutine in the `normal` state. This issue will be addressed in the near future.
+
+This API was first introduced in the `v0.6.0` release.
+
+coroutine.yield
+---------------
+**syntax:** *... = coroutine.yield(co, ...)*
+
+**context:** *rewrite_by_lua*, access_by_lua*, content_by_lua**
+
+Yields the executation of the current user Lua coroutine.
+
+Just behaves like the standard Lua [coroutine.yield](http://www.lua.org/manual/5.1/manual.html#pdf-coroutine.yield) API, but works in the context of the Lua coroutines created automatically by this Nginx module.
+
+This API was first introduced in the `v0.6.0` release.
+
+coroutine.wrap
+--------------
+**syntax:** *co = coroutine.wrap(f)*
+
+**context:** *rewrite_by_lua*, access_by_lua*, content_by_lua**
+
+Just behaves like the standard Lua [coroutine.wrap](http://www.lua.org/manual/5.1/manual.html#pdf-coroutine.wrap) API, but works in the context of the Lua coroutines created automatically by this Nginx module.
+
+This API was first introduced in the `v0.6.0` release.
+
+coroutine.running
+-----------------
+**syntax:** *co = coroutine.running()*
+
+**context:** *rewrite_by_lua*, access_by_lua*, content_by_lua**
+
+Identical to the standard Lua [coroutine.running](http://www.lua.org/manual/5.1/manual.html#pdf-coroutine.running) API.
+
+This API was first enabled in the `v0.6.0` release.
+
+coroutine.status
+----------------
+**syntax:** *status = coroutine.status(co)*
+
+**context:** *rewrite_by_lua*, access_by_lua*, content_by_lua**
+
+Identical to the standard Lua [coroutine.status](http://www.lua.org/manual/5.1/manual.html#pdf-coroutine.status) API.
+
+Note that due to the current implementation, this function will incorrectly return `"suspended"` for `"normal"` coroutines. This issue will be addressed in the near future.
+
+This API was first enabled in the `v0.6.0` release.
+
 ndk.set_var.DIRECTIVE
 ---------------------
 **syntax:** *res = ndk.set_var.DIRECTIVE_NAME*
@@ -4156,8 +4241,6 @@ the `-0` option.
 Data Sharing within an Nginx Worker
 ===================================
 
-**NOTE: This mechanism behaves differently when code cache is turned off and should be considered a DIRTY TRICK. Note that backward compatibility is NOT guaranteed and that there may be other undesirable consequences. A new data sharing mechanism will be designed later.**
-
 To globally share data among all the requests handled by the same nginx worker process, encapsulate the shared data into a Lua module, use the Lua `require` builtin to import the module, and then manipulate the shared data in Lua. This works because required Lua modules are loaded only once and all coroutines will share the same copy of the module. Note however that Lua global variables WILL NOT persist between requests because of the one-coroutine-per-request isolation design.
 
 Here is a complete small example:
@@ -4238,7 +4321,7 @@ Care should be taken when importing modules and this form should be used:
         require('xxx')
 
 
-It is recommended to always place the following piece of code at the end of Lua modules that use the [ngx.location.capture](http://wiki.nginx.org/HttpLuaModule#ngx.location.capture) or [ngx.location.capture_multi](http://wiki.nginx.org/HttpLuaModule#ngx.location.capture_multi) directives to prevent casual use of module-level global variables that are shared among *all* requests:
+It is recommended to always place the following piece of code at the end of Lua modules that use the I/O operations to prevent casual use of module-level global variables that are shared among *all* requests:
 
 
     getmetatable(foo.bar).__newindex = function (table, key, val)
@@ -4322,13 +4405,13 @@ Alternatively, the regex pattern can be presented as a long-bracketed Lua string
 Here, `[[\\d+]]` is stripped down to `[[\d+]]` by the Nginx config file parser and this is processed correctly.
 
 Note that a longer from of the long bracket, `[=[...]=]`, may be required if the regex pattern contains `[...]` sequences. 
-The `[=[...]=]` form may be used as the default form if desired and it may help with readability if a space is inserted between the long brackets and the regex patterns.
+The `[=[...]=]` form may be used as the default form if desired.
 
 
     # nginx.conf
     location /test {
         content_by_lua '
-            local regex = [=[ [0-9]+ ]=]
+            local regex = [=[[0-9]+]=]
             local m = ngx.re.match("hello, 1234", regex)
             if m then ngx.say(m[0]) else ngx.say("not matched!") end
         ';
@@ -4378,17 +4461,16 @@ The Lua state (Lua VM instance) is shared across all the requests handled by a s
 
 On a ThinkPad T400 2.80 GHz laptop, the Hello World example readily achieves 28k req/sec using `http_load -p 10`. By contrast, Nginx + php-fpm 5.2.8 + Unix Domain Socket yields 6k req/sec and [Node.js](http://nodejs.org/) v0.6.1 yields 10.2k req/sec for their Hello World equivalents.
 
-This module performs best when built with [LuaJIT 2.0](http://luajit.org/luajit.html).
-
 Nginx Compatibility
 ===================
 The module is compatible with the following versions of Nginx:
 
-*   1.2.x (last tested: 1.2.1)
-*   1.1.x (last tested: 1.1.5)
-*   1.0.x (last tested: 1.0.15)
-*   0.9.x (last tested: 0.9.4)
-*   0.8.x >= 0.8.54 (last tested: 0.8.54)
+* 1.3.x (last tested: 1.3.4)
+* 1.2.x (last tested: 1.2.3)
+* 1.1.x (last tested: 1.1.5)
+* 1.0.x (last tested: 1.0.15)
+* 0.9.x (last tested: 0.9.4)
+* 0.8.x >= 0.8.54 (last tested: 0.8.54)
 
 Code Repository
 ===============
@@ -4402,7 +4484,7 @@ The [ngx_openresty bundle](http://openresty.org) can be used to install Nginx, `
 
 Alternatively, `ngx_lua` can be manually compiled into Nginx:
 
-1. Install LuaJIT 2.0 (Recommended) or Lua 5.1 (Lua 5.2 is *not* supported yet). Lua can be obtained free from the [the LuaJIT download page](http://luajit.org/download.html) or [the standard Lua homepage](http://www.lua.org/).  Some distribution package managers also distribute Lua and LuaJIT.
+1. Install LuaJIT 2.0 (Recommended) or Lua 5.1 (Lua 5.2 is *not* supported yet). LuajIT can be downloaded from the [the LuaJIT project website](http://luajit.org/download.html) and Lua 5.1, from the [Lua project website](http://www.lua.org/).  Some distribution package managers also distribute LuajIT and/or Lua.
 1. Download the latest version of the ngx_devel_kit (NDK) module [HERE](http://github.com/simpl/ngx_devel_kit/tags).
 1. Download the latest version of `ngx_lua` [HERE](http://github.com/chaoslawful/lua-nginx-module/tags).
 1. Download the latest version of Nginx [HERE](http://nginx.org/) (See [Nginx Compatibility](http://wiki.nginx.org/HttpLuaModule#Nginx_Compatibility))
@@ -4410,17 +4492,17 @@ Alternatively, `ngx_lua` can be manually compiled into Nginx:
 Build the source with this module:
 
 
-    wget 'http://nginx.org/download/nginx-1.2.1.tar.gz'
-    tar -xzvf nginx-1.2.1.tar.gz
-    cd nginx-1.2.1/
+    wget 'http://nginx.org/download/nginx-1.2.3.tar.gz'
+    tar -xzvf nginx-1.2.3.tar.gz
+    cd nginx-1.2.3/
+
+    # tell nginx's build system where to find LuaJIT:
+    export LUAJIT_LIB=/path/to/luajit/lib
+    export LUAJIT_INC=/path/to/luajit/include/luajit-2.0
  
-    # tell nginx's build system where to find lua:
-    export LUA_LIB=/path/to/lua/lib
-    export LUA_INC=/path/to/lua/include
- 
-    # or tell where to find LuaJIT when if using JIT instead
-    # export LUAJIT_LIB=/path/to/luajit/lib
-    # export LUAJIT_INC=/path/to/luajit/include/luajit-2.0
+    # or tell where to find Lua if using Lua instead:
+    #export LUA_LIB=/path/to/lua/lib
+    #export LUA_INC=/path/to/lua/include
  
     # Here we assume Nginx is to be installed under /opt/nginx/.
     ./configure --prefix=/opt/nginx \
@@ -4434,47 +4516,64 @@ Build the source with this module:
 Installation on Ubuntu 11.10
 ----------------------------
 
-To install lua 5.1 from repository run the following command:
+Note that it is recommended to use LuaJIT 2.0 instead of the standard Lua 5.1 interpreter where possible. 
+
+If the standard Lua 5.1 interpreter is required however, run the following command to install it from the Ubuntu repository:
 
 
     apt-get install -y lua5.1 liblua5.1-0 liblua5.1-0-dev
 
 
-Everything should be installed correctly, except one small tweak. Library name `liblua.so` has been changed in liblua5.1 package, it
-only comes with `liblua5.1.so`, which needs to be symlinked to `/usr/lib` so it could be found during the configuration process.
+Everything should be installed correctly, except for one small tweak. 
+
+Library name `liblua.so` has been changed in liblua5.1 package, it only comes with `liblua5.1.so`, which needs to be symlinked to `/usr/lib` so it could be found during the configuration process.
 
 
     ln -s /usr/lib/x86_64-linux-gnu/liblua5.1.so /usr/lib/liblua.so
 
 
-It is recommended, however, to use LuaJIT 2.0 instead of the standard Lua 5.1 interpreter with this module wherever possible.
+Community
+=========
+
+English Mailing List
+--------------------
+
+The [openresty-en](https://groups.google.com/group/openresty-en) mailing list is for English speakers.
+
+Chinese Mailing List
+--------------------
+
+The [openresty](https://groups.google.com/group/openresty) mailing list is for Chinese speakers.
 
 Bugs and Patches
 ================
 
-Please report bugs or submit patches by:
+Please submit bug reports, wishlists, or patches by
 
-1. Creating a ticket on the [GitHub Issue Tracker](http://github.com/chaoslawful/lua-nginx-module/issues) (Recommended)
-1. Posting to the [Nginx Mailing List](http://mailman.nginx.org/mailman/listinfo/nginx) and adding `[ngx_lua]` to the mail subject.
+1. creating a ticket on the [GitHub Issue Tracker](http://github.com/chaoslawful/lua-nginx-module/issues),
+1. or posting to the [OpenResty community](http://wiki.nginx.org/HttpLuaModule#Community).
 
 TODO
 ====
 
 Short Term
 ----------
-* implement [LuaSocket UDP API](http://w3.impa.br/~diego/software/luasocket/udp.html) in our cosocket API.
+* review and apply Brian Akin's patch for the new directive `lua_socket_log_errors`.
+* review and apply Brian Akin's patch for the new `shdict:flush_expired()` API.
 * implement the SSL cosocket API.
-* implement the `ngx.re.split` method.
+* review and apply Jader H. Silva's patch for `ngx.re.split()`.
+* review and apply vadim-pavlov's patch for [ngx.location.capture](http://wiki.nginx.org/HttpLuaModule#ngx.location.capture)'s `extra_headers` option
 * use `ngx_hash_t` to optimize the built-in header look-up process for [ngx.req.set_header](http://wiki.nginx.org/HttpLuaModule#ngx.req.set_header), [ngx.header.HEADER](http://wiki.nginx.org/HttpLuaModule#ngx.header.HEADER), and etc.
 * add configure options for different strategies of handling the cosocket connection exceeding in the pools.
 * add directives to run Lua codes when nginx stops.
 * add APIs to access cookies as key/value pairs.
 * add `ignore_resp_headers`, `ignore_resp_body`, and `ignore_resp` options to [ngx.location.capture](http://wiki.nginx.org/HttpLuaModule#ngx.location.capture) and [ngx.location.capture_multi](http://wiki.nginx.org/HttpLuaModule#ngx.location.capture_multi) methods, to allow micro performance tuning on the user side.
+* implement new directive `lua_ignore_client_abort`.
 
 Longer Term
 -----------
+* add lightweight thread API (i.e., the `ngx.thread` API) as demonstrated in [this sample code](http://agentzh.org/misc/nginx/lua-thread2.lua).
 * add Lua code automatic time slicing support by yielding and resuming the Lua VM actively via Lua's debug hooks.
-* add coroutine API back to the Lua user land.
 * add `stat` mode similar to [mod_lua](http://httpd.apache.org/docs/2.3/mod/mod_lua.html).
 
 Changes
@@ -4536,7 +4635,7 @@ This module is licensed under the BSD license.
 
 Copyright (C) 2009-2012, by Xiaozhe Wang (chaoslawful) <chaoslawful@gmail.com>.
 
-Copyright (C) 2009-2012, by Zhang "agentzh" Yichun (章亦春) <agentzh@gmail.com>.
+Copyright (C) 2009-2012, by Yichun "agentzh" Zhang (章亦春) <agentzh@gmail.com>.
 
 All rights reserved.
 
