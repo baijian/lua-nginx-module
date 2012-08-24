@@ -540,7 +540,7 @@ ngx_http_lua_shdict_flush_all(lua_State *L)
 static int
 ngx_http_lua_shdict_flush_expired(lua_State *L)
 {
-    ngx_queue_t                 *q, *next;
+    ngx_queue_t                 *q, *prev;
     ngx_http_lua_shdict_node_t  *sd;
     ngx_http_lua_shdict_ctx_t   *ctx;
     ngx_shm_zone_t              *zone;
@@ -583,10 +583,10 @@ ngx_http_lua_shdict_flush_expired(lua_State *L)
 
     now = (uint64_t) tp->sec * 1000 + tp->msec;
 
-    q = ngx_queue_head(&ctx->sh->queue);
+    q = ngx_queue_last(&ctx->sh->queue);
 
     while (q != ngx_queue_sentinel(&ctx->sh->queue)) {
-        next = ngx_queue_next(q);
+        prev = ngx_queue_prev(q);
 
         sd = ngx_queue_data(q, ngx_http_lua_shdict_node_t, queue);
 
@@ -607,7 +607,7 @@ ngx_http_lua_shdict_flush_expired(lua_State *L)
             }
         }
 
-        q = next;
+        q = prev;
     }
 
     ngx_shmtx_unlock(&ctx->shpool->mutex);
