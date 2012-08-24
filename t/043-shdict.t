@@ -1092,7 +1092,7 @@ nil nil
             dogs:set("bah", "y", 0)
             dogs:set("bar", "z", 100)
 
-            ngx.sleep(2)
+            ngx.sleep(1.5)
 
             local num = dogs:flush_expired()
             ngx.say(num)
@@ -1120,7 +1120,7 @@ GET /t
             dogs:set("bah", "y", 0)
             dogs:set("bar", "z", 100)
 
-            ngx.sleep(2)
+            ngx.sleep(1.5)
 
             local num = dogs:flush_expired(42)
             ngx.say(num)
@@ -1130,4 +1130,45 @@ GET /t
 GET /t
 --- response_body
 42
+
+
+
+=== TEST 47: flush_expires an empty dict
+--- http_config
+    lua_shared_dict dogs 1m;
+--- config
+    location = /t {
+        content_by_lua '
+            local dogs = ngx.shared.dogs
+
+            local num = dogs:flush_expired()
+            ngx.say(num)
+        ';
+    }
+--- request
+GET /t
+--- response_body
+0
+
+
+
+=== TEST 48: flush_expires a dict without expired items
+--- http_config
+    lua_shared_dict dogs 1m;
+--- config
+    location = /t {
+        content_by_lua '
+            local dogs = ngx.shared.dogs
+
+            dogs:set("bah", "y", 0)
+            dogs:set("bar", "z", 100)
+
+            local num = dogs:flush_expired()
+            ngx.say(num)
+        ';
+    }
+--- request
+GET /t
+--- response_body
+0
 
